@@ -1,0 +1,6 @@
+{
+    "shell-version": ["3.0"], 
+    "uuid": "gjsimp@tigersoldier", 
+    "name": "GJS IM Panel", 
+    "description": "An input method panel for GNOME Shell"
+}
