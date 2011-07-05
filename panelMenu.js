@@ -25,8 +25,6 @@ const Button = imports.ui.panelMenu.Button;
 const Main = imports.ui.main;
 
 const Extension = imports.ui.extensionSystem.extensions["gjsimp@tigersoldier"];
-const PopupMenuNoOpenStateChanged = Extension.popupMenu.PopupMenuNoOpenStateChanged;
-
 
 function SystemStatusLabelButton() {
     this._init.apply(this, arguments);
@@ -38,7 +36,6 @@ SystemStatusLabelButton.prototype = {
 
     _init: function(label, iconName, tooltipText) {
         Button.prototype._init.call(this, St.Align.START);
-        this._init_menu();
         this._iconActor = null;
         this._iconName = null;
         this._iconActor = null;
@@ -50,19 +47,6 @@ SystemStatusLabelButton.prototype = {
             this.setIcon(iconName);
         }
         this.setTooltip(tooltipText);
-    },
-
-    /* The custom PopupMenu does not emit open-state-changed so that
-     * the focus is kept on the text applications. */
-    _init_menu: function() {
-        if (this.menu) {
-            this.menu.close();
-        }
-        this.menu = new PopupMenuNoOpenStateChanged(this.actor, St.Align.START,
-                                                    St.Side.TOP, 0);
-        Main.chrome.addActor(this.menu.actor, { visibleInOverview: true,
-                                                affectsStruts: false });
-        this.menu.actor.hide();
     },
 
     setIcon: function(iconName) {
