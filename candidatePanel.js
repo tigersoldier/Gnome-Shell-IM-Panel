@@ -18,6 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+const St = imports.gi.St;
 const Gtk = imports.gi.Gtk;
 const Gdk = imports.gi.Gdk;
 const Pango = imports.gi.Pango;
@@ -56,6 +57,132 @@ function vseparator_new() {
     retval.show();
     return retval;
 }
+
+function StCandidateArea(orientation) {
+    this._init(orientation);
+}
+
+StCandidateArea.prototype = {
+    _init: function(orientation) {
+        this.actor = new St.BoxLayout({ vertical: false,
+                                        style_class: "candidate-area" });
+        this._orientation = orientation;
+        this._labels = [];
+        // this._candidates = [];
+        this._create_ui();
+    },
+
+    _create_ui: function() {
+        if (this._orientation == ORIENTATION_VERTICAL) {
+            // this._table = new St.Table({homogeneous: false});
+            this._vbox1 = new St.BoxLayout({vertical: true,
+                                            style_class: "candidate-vertical"});
+            this.actor.add(this._vbox1,
+                           { expand: true, 
+                             x_fill: true,
+                             y_fill: true
+                           });
+            // this.actor.add(this._vbox2,
+            //                { expand: true, 
+            //                  x_fill: true,
+            //                  y_fill: false,
+            //                });
+            // this.actor.add(this._table);
+        }
+        for (let i = 0; i < 16; i++) {
+            let label1 = new St.Label({ text: "1234567890abcdef".charAt(i) + '.',
+                                        style_class: "candidate-label" });
+
+            let label2 = new St.Label({ text: '' ,
+                                        style_class: "candidate-text"});
+
+            if (this._orientation == ORIENTATION_VERTICAL) {
+                let hbox = new St.BoxLayout({vertical: false});
+                hbox.add(label1,
+                         { expand: false,
+                           x_fill: false,
+                           y_fill: true
+                         });
+                hbox.add(label2,
+                         { expand: true,
+                           x_fill: true,
+                           y_fill: true
+                         });
+                this._vbox1.add(hbox);
+            } else {
+                this.actor.add(label1);
+                this.actor.add(label2);
+            }
+
+            this._labels[this._labels.length] = [label1, label2];
+        }
+
+        // for (let i = 0; i < this._candidates.length; i++) {
+        //     let ws = this._candidates[i];
+        //     for(let j = 0; j < ws.length; j++) {
+        //         let w = ws[j];
+        //         w.data = i;
+        //         w.connect('button-press-event', Lang.bind(this, function(w, e) {
+        //             this.emit('candidate-clicked', w.data, e.button, e.state);}));
+        //     }
+        // }
+    },
+
+    set_labels: function(labels) {
+        if (!labels || labels.length == 0) {
+            for (let i = 0; i < 16; i++) {
+                this._labels[i][0].set_text("1234567890abcdef".charAt(i) + '.');
+            }
+            return;
+        }
+
+        for (let i = 0; j < labels.length && i < this._labels.length; i++) {
+            let [text, attrs] = labels[i];
+            this._labels[i][0].set_text(text);
+            this._labels[i][0].set_attributes(attrs);
+        }
+    },
+
+    set_candidates: function(candidates, focus_candidate, show_cursor) {
+        if (focus_candidate == undefined) {
+            focus_candidate = 0;
+        }
+        if (show_cursor == undefined) {
+            show_cursor = true;
+        }
+        if (candidates.length > this._labels.length) {
+            assert();
+        }
+
+        for (let i = 0; i < candidates.length; i++) {
+            let [text, attrs] = candidates[i];
+            if (i == focus_candidate && show_cursor) {
+                this._labels[i][1].add_style_pseudo_class('active');
+            } else {
+                this._labels[i][1].remove_style_pseudo_class('active');
+            }
+            this._labels[i][1].set_text(text);
+            for (let j = 0; j < this._labels[i].length; j++) {
+                this._labels[i][j].show();
+            }
+        }
+
+        for (let i = this._labels.length - 1; i >= candidates.length; i--) {
+            for (let j = 0; j < this._labels[i].length; j++) {
+                this._labels[i][j].hide();
+            }
+        }
+    },
+
+    show_all: function() {
+        this.actor.show();
+    },
+
+    hide_all: function() {
+        this.actor.hide();
+    },
+
+};
 
 function CandidateArea(orientation) {
     this._init(orientation);
@@ -265,10 +392,71 @@ CandidatePanel.prototype = {
         this._cursor_location = [0, 0, 0, 0];
         this._moved_cursor_location = null; 
 
+        this._init_st();
         this._recreate_ui();
 
         // size-request is a deprecated signal.
         //this._vbox.connect('size-request', Lang.bind(this, this._size_request));
+    },
+
+    _init_st: function() {
+        this._st_candidate_panel = new St.BoxLayout({style_class: 'candidate-panel',
+                                          vertical: true});
+
+        this._st_preedit_label = new St.Label({text: this._preedit_string});
+        if (!this._preedit_visible) {
+            this._st_preedit_label.hide();
+        }
+        this._st_aux_label = new St.Label({text: this._aux_string});
+        if (!this._aux_visible) {
+            this._st_aux_label.hide();
+        }
+        this._st_candidate_panel.set_position(500, 500);
+        // create candidates area
+        this._st_candidate_area = new StCandidateArea(this._current_orientation);
+        // this._candidate_area.get_raw().set_no_show_all(true);
+        // this._candidate_area.connect('candidate-clicked', Lang.bind(this, function(x, i, b, s) {
+        //     this.emit('candidate-clicked', i, b, s);}));
+        // this.update_lookup_table(this._lookup_table, this._lookup_table_visible);
+
+        // // create state label
+        // this._state_label = new Gtk.Label({ label: '' });
+        // this._state_label.set_size_request(20, -1);
+
+        // // create buttons
+        // this._prev_button = new Gtk.Button();
+        // this._prev_button.connect('clicked', Lang.bind(this, function(x) {
+        //     this.emit('page-up');}));
+        // this._prev_button.set_relief(Gtk.ReliefStyle.NONE);
+        // this._prev_button.set_tooltip_text(_("Previous page"));
+
+        // this._next_button = new Gtk.Button();
+        // this._next_button.connect('clicked', Lang.bind(this, function(x) {
+        //     this.emit('page-down');}));
+        // this._next_button.set_relief(Gtk.ReliefStyle.NONE);
+        // this._next_button.set_tooltip_text(_("Next page"));
+
+        // this._check_show_states();
+        this._pack_all_st_widgets();
+        global.stage.add_actor(this._st_candidate_panel);
+    },
+
+    _pack_all_st_widgets: function() {
+        this._st_candidate_panel.add(this._st_preedit_label,
+                                     {x_fill: true,
+                                      y_fill: false,
+                                      x_align: St.Align.MIDDLE,
+                                      y_align: St.Align.START});
+        this._st_candidate_panel.add(this._st_aux_label,
+                                     {x_fill: true,
+                                      y_fill: false,
+                                      x_align: St.Align.MIDDLE,
+                                      y_align: St.Align.MIDDLE});
+        this._st_candidate_panel.add(this._st_candidate_area.actor,
+                                     {x_fill: true,
+                                      y_fill: false,
+                                      x_align: St.Align.MIDDLE,
+                                      y_align: St.Align.END});
     },
 
     _handle_move_end_cb: function(handle) {
@@ -388,12 +576,14 @@ CandidatePanel.prototype = {
     show_preedit_text: function() {
         this._preedit_visible = true;
         this._preedit_label.show();
+        this._st_preedit_label.show();
         this._check_show_states();
     },
 
     hide_preedit_text: function() {
         this._preedit_visible = false;
         this._preedit_label.hide();
+        this._st_preedit_label.hide();
         this._check_show_states();
     },
 
@@ -405,6 +595,7 @@ CandidatePanel.prototype = {
             this.hide_preedit_text();
         }
         this._preedit_stribg = text.get_text();
+        this._st_preedit_label.set_text(text.get_text());
         this._preedit_label.set_text(text.get_text());
         this._preedit_attrs = attrs;
         this._preedit_label.set_attributes(attrs.get_raw());
@@ -413,12 +604,14 @@ CandidatePanel.prototype = {
     show_auxiliary_text: function() {
         this._aux_string_visible = true;
         this._aux_label.show();
+        this._st_aux_label.show();
         this._check_show_states();
     },
 
     hide_auxiliary_text: function() {
         this._aux_string_visible = false;
         this._aux_label.hide();
+        this._st_aux_label.hide();
         this._check_show_states();
     },
 
@@ -433,6 +626,7 @@ CandidatePanel.prototype = {
 
         this._aux_string = text.get_text();
         this._aux_label.set_text(text.get_text());
+        this._st_aux_label.set_text(text.get_text());
         this._aux_attrs = attrs;
         this._aux_label.set_attributes(attrs.get_raw());
     },
@@ -445,6 +639,7 @@ CandidatePanel.prototype = {
                                              new PangoAttrList(label.get_attributes(), label.get_text()).get_raw()];
         }
         this._candidate_area.set_labels(new_labels);
+        this._st_candidate_area.set_labels(new_labels);
     },
 
 
@@ -481,6 +676,10 @@ CandidatePanel.prototype = {
                 this._get_cursor_pos_in_current_page(),
                 this._lookup_table.is_cursor_visible()
                 );
+        this._st_candidate_area.set_candidates(new_candidates,
+                                               this._get_cursor_pos_in_current_page(),
+                                               this._lookup_table.is_cursor_visible()
+                                              );
     },
 
     update_lookup_table: function(lookup_table, visible) {
@@ -510,6 +709,7 @@ CandidatePanel.prototype = {
         this._lookup_table_visible = true;
         this._candidate_area.get_raw().set_no_show_all(false);
         this._candidate_area.get_raw().show_all();
+        this._st_candidate_area.show_all();
         this._check_show_states();
     },
 
@@ -517,6 +717,7 @@ CandidatePanel.prototype = {
         this._lookup_table_visible = false;
         this._candidate_area.hide_all();
         this._candidate_area.set_no_show_all(true);
+        this._st_candidate_area.hide_all();
         this._check_show_states();
     },
 
@@ -554,12 +755,15 @@ CandidatePanel.prototype = {
             this._aux_string_visible ||
             this._lookup_table_visible) {
             this._vbox.show_all();
-            this._toplevel.show_all();
+            // this._toplevel.show_all();
+            this._toplevel.hide();
+            this._st_candidate_panel.show();
             this._check_position();
             this.emit('show');
         } else {
             this._vbox.hide();
             this._toplevel.hide();
+            this._st_candidate_panel.hide();
             this.emit('hide');
         }
     },
@@ -647,30 +851,21 @@ CandidatePanel.prototype = {
 
     show_all: function() {
         this._vbox.show_all();
-        this._toplevel.show_all();
+        // this._toplevel.show_all();
+        this._toplevel.hide();
+        this._st_candidate_panel.show();
     },
 
     hide_all: function() {
         this._vbox.hide();
         this._toplevel.hide();
+        this._st_candidate_panel.hide();
     },
 
     move: function(x, y) {
         this._toplevel.move(x, y);
+        this._st_candidate_panel.set_position(x, y);
     },
 };
 
 Signals.addSignalMethods(CandidatePanel.prototype);
-
-/*
-if (0) {
-    Gtk.init(0, null);
-    let table = IBus.LookupTable.new(5, 0, true, false);
-    table.append_candidate(IBus.Text.new_from_string('AAA'));
-    table.append_candidate(IBus.Text.new_from_string('BBB'));
-    let cp = new CandidatePanel();
-    cp.show_all();
-    cp.update_lookup_table(table, true);
-    Gtk.main();
-}
-*/
