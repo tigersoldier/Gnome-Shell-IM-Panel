@@ -11,6 +11,7 @@ This project aims to implement a new candidate panel with Shell Toolkit instead 
 
 Installation
 ============
+This extension requires some new APIs which are not released yet. You need to install ibus from the git repository. See http://code.google.com/p/ibus/wiki/Install#Obtain_source_code for more detail.
 
 To install this extension, just copy the whole directory to ~/.local/share/gnome-shell/extensions
 
