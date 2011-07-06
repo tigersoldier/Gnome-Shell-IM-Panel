@@ -841,7 +841,8 @@ CandidatePanel.prototype = {
             if (this._current_orientation == ORIENTATION_VERTICAL) {
                 pad = 10;
             }
-            y = cursor_location[1] - this._st_candidate_panel.get_height() - pad;
+            y = Math.min(cursor_location[1] - pad, sy) - 
+                this._st_candidate_panel.get_height();
         } else {
             y = cursor_bottom;
         }
