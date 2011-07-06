@@ -821,15 +821,15 @@ CandidatePanel.prototype = {
         let cursor_right = cursor_location[0] + cursor_location[2];
         let cursor_bottom = cursor_location[1] + cursor_location[3];
 
-        let window_right = cursor_right + this._toplevel.get_allocated_width();
-        let window_bottom = cursor_bottom + this._toplevel.get_allocated_height();
+        let window_right = cursor_right + this._st_candidate_panel.get_width();
+        let window_bottom = cursor_bottom + this._st_candidate_panel.get_height();
         let root_window = Gdk.get_default_root_window();
         let [sx, sy] = [root_window.get_width(), root_window.get_height()];
         let x = 0;
         let y = 0;
 
         if (window_right > sx) {
-            x = sx - this._toplevel.get_allocated_width();
+            x = sx - this._st_candidate_panel.get_width();
         } else {
             x = cursor_right;
         }
@@ -841,7 +841,7 @@ CandidatePanel.prototype = {
             if (this._current_orientation == ORIENTATION_VERTICAL) {
                 pad = 10;
             }
-            y = cursor_location[1] - this._toplevel.get_allocated_height() - pad;
+            y = cursor_location[1] - this._st_candidate_panel.get_height() - pad;
         } else {
             y = cursor_bottom;
         }
