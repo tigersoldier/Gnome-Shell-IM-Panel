@@ -16,6 +16,7 @@
 
 .candidate-label {
     padding-right: 10px;
+    cursor: pointer;
 }
 
 .candidate-vertical > .candidate-label {
@@ -24,4 +25,8 @@
 
 .candidate-text:active {
     background-color: #555555;
+}
+
+.candidate-text:hover {
+    background-color: #777777;
 }
