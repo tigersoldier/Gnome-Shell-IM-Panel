@@ -45,18 +45,35 @@ function StCandidateArea(orientation) {
 
 StCandidateArea.prototype = {
     _init: function(orientation) {
-        this.actor = new St.BoxLayout({ vertical: false,
-                                        style_class: "candidate-area" });
+        this.actor = new St.BoxLayout({ style_class: "candidate-area" });
         this._orientation = orientation;
         this._labels = [];
         this._create_ui();
     },
 
+    _remove_old_widgets: function() {
+        // let child = this.actor.get_child();
+        // this.actor.set_child(null);
+        // child.destroy();
+        this.actor.destroy_children();
+        this._labels = [];
+    },
+
     _create_ui: function() {
+        let vbox = null;
+        let hbox = null;
         if (this._orientation == ORIENTATION_VERTICAL) {
-            this._vbox1 = new St.BoxLayout({vertical: true,
-                                            style_class: "candidate-vertical"});
-            this.actor.add(this._vbox1,
+            vbox = new St.BoxLayout({vertical: true,
+                                         style_class: "candidate-vertical"});
+            this.actor.add(vbox,
+                           { expand: true, 
+                             x_fill: true,
+                             y_fill: true
+                           });
+        } else {
+            hbox = new St.BoxLayout({vertical: false,
+                                         style_class: "candidate-horizontal"});
+            this.actor.add(hbox,
                            { expand: true, 
                              x_fill: true,
                              y_fill: true
@@ -72,21 +89,21 @@ StCandidateArea.prototype = {
                                         reactive: true });
 
             if (this._orientation == ORIENTATION_VERTICAL) {
-                let hbox = new St.BoxLayout({vertical: false});
-                hbox.add(label1,
-                         { expand: false,
-                           x_fill: false,
-                           y_fill: true
-                         });
-                hbox.add(label2,
-                         { expand: true,
-                           x_fill: true,
-                           y_fill: true
-                         });
-                this._vbox1.add(hbox);
+                let candidate_hbox = new St.BoxLayout({vertical: false});
+                candidate_hbox.add(label1,
+                                   { expand: false,
+                                     x_fill: false,
+                                     y_fill: true
+                                   });
+                candidate_hbox.add(label2,
+                                   { expand: true,
+                                     x_fill: true,
+                                     y_fill: true
+                                   });
+                vbox.add(candidate_hbox);
             } else {
-                this.actor.add(label1);
-                this.actor.add(label2);
+                hbox.add(label1);
+                hbox.add(label2);
             }
 
             this._labels[this._labels.length] = [label1, label2];
@@ -110,6 +127,11 @@ StCandidateArea.prototype = {
                                });
             }
         }
+    },
+
+    _recreate_ui: function() {
+        this._remove_old_widgets();
+        this._create_ui();
     },
 
     _candidate_clicked_cb: function(widget, event) {
@@ -163,6 +185,13 @@ StCandidateArea.prototype = {
                 this._labels[i][j].hide();
             }
         }
+    },
+
+    set_orientation: function(orientation) {
+        if (orientation == this._orientation)
+            return;
+        this._orientation = orientation;
+        this._recreate_ui();
     },
 
     show_all: function() {
@@ -249,7 +278,6 @@ CandidatePanel.prototype = {
         Main.chrome.addActor(this._st_candidate_panel,
                             { visibleInOverview: true,
                               affectsStruts: false});
-        //global.stage.add_actor(this.actor);
         this._check_show_states();
     },
 
@@ -467,11 +495,10 @@ CandidatePanel.prototype = {
             return;
         }
         this._current_orientation = orientation;
-        // FIXME:
+        this._st_candidate_area.set_orientation(orientation);
     },
 
     set_orientation: function(orientation) {
-        global.log('current orientation is:' + orientation);
         this._orientation = orientation;
         this.update_lookup_table(this._lookup_table, this._lookup_table_visible);
     },
