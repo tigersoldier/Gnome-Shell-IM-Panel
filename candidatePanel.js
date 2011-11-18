@@ -20,9 +20,8 @@
  */
 
 const St = imports.gi.St;
-const Gtk = imports.gi.Gtk;
 const Gdk = imports.gi.Gdk;
-const Pango = imports.gi.Pango;
+const GLib = imports.gi.GLib;
 const IBus = imports.gi.IBus;
 const Lang = imports.lang;
 const Signals = imports.signals;
@@ -30,14 +29,7 @@ const Main = imports.ui.main;
 const Shell = imports.gi.Shell;
 
 const Extension = imports.ui.extensionSystem.extensions["gjsimp@tigersoldier"];
-const Handle = Extension.handle;
-const PangoAttrList = Extension.pangoAttrList.PangoAttrList;
-
-const _ = Extension.common._;
-const ORIENTATION_HORIZONTAL = Extension.common.ORIENTATION_HORIZONTAL;
-const ORIENTATION_VERTICAL   = Extension.common.ORIENTATION_VERTICAL;
-const ORIENTATION_SYSTEM     = Extension.common.ORIENTATION_SYSTEM;
-
+const Common = Extension.common;
 
 function StCandidateArea(orientation) {
     this._init(orientation);
@@ -45,34 +37,31 @@ function StCandidateArea(orientation) {
 
 StCandidateArea.prototype = {
     _init: function(orientation) {
-        this.actor = new St.BoxLayout({ style_class: "candidate-area" });
+        this.actor = new St.BoxLayout({ style_class: 'candidate-area' });
         this._orientation = orientation;
         this._labels = [];
-        this._create_ui();
+        this._createUI();
     },
 
-    _remove_old_widgets: function() {
-        // let child = this.actor.get_child();
-        // this.actor.set_child(null);
-        // child.destroy();
+    _removeOldWidgets: function() {
         this.actor.destroy_children();
         this._labels = [];
     },
 
-    _create_ui: function() {
+    _createUI: function() {
         let vbox = null;
         let hbox = null;
-        if (this._orientation == ORIENTATION_VERTICAL) {
-            vbox = new St.BoxLayout({vertical: true,
-                                         style_class: "candidate-vertical"});
+        if (this._orientation == Common.ORIENTATION_VERTICAL) {
+            vbox = new St.BoxLayout({ vertical: true,
+                                      style_class: 'candidate-vertical' });
             this.actor.add(vbox,
                            { expand: true, 
                              x_fill: true,
                              y_fill: true
                            });
         } else {
-            hbox = new St.BoxLayout({vertical: false,
-                                         style_class: "candidate-horizontal"});
+            hbox = new St.BoxLayout({ vertical: false,
+                                      style_class: 'candidate-horizontal' });
             this.actor.add(hbox,
                            { expand: true, 
                              x_fill: true,
@@ -80,42 +69,42 @@ StCandidateArea.prototype = {
                            });
         }
         for (let i = 0; i < 16; i++) {
-            let label1 = new St.Label({ text: "1234567890abcdef".charAt(i) + '.',
-                                        style_class: "candidate-label",
+            let label1 = new St.Label({ text: '1234567890abcdef'.charAt(i) + '.',
+                                        style_class: 'candidate-label',
                                         reactive: true });
 
             let label2 = new St.Label({ text: '' ,
-                                        style_class: "candidate-text",
+                                        style_class: 'candidate-text',
                                         reactive: true });
 
-            if (this._orientation == ORIENTATION_VERTICAL) {
-                let candidate_hbox = new St.BoxLayout({vertical: false});
-                candidate_hbox.add(label1,
+            if (this._orientation == Common.ORIENTATION_VERTICAL) {
+                let candidateHBox = new St.BoxLayout({vertical: false});
+                candidateHBox.add(label1,
                                    { expand: false,
                                      x_fill: false,
                                      y_fill: true
                                    });
-                candidate_hbox.add(label2,
+                candidateHBox.add(label2,
                                    { expand: true,
                                      x_fill: true,
                                      y_fill: true
                                    });
-                vbox.add(candidate_hbox);
+                vbox.add(candidateHBox);
             } else {
                 hbox.add(label1);
                 hbox.add(label2);
             }
 
-            this._labels[this._labels.length] = [label1, label2];
+            this._labels.push([label1, label2]);
         }
 
         for (let i = 0; i < this._labels.length; i++) {
             for(let j = 0; j < this._labels[i].length; j++) {
                 let widget = this._labels[i][j];
-                widget.candidate_index = i;
+                widget.candidateIndex = i;
                 widget.connect('button-press-event', 
                                Lang.bind(this, function (widget, event) {
-                                   this._candidate_clicked_cb(widget, event);
+                                   this._candidateClickedCB(widget, event);
                                }));
                 widget.connect('enter-event',
                                function(widget, event) {
@@ -129,47 +118,54 @@ StCandidateArea.prototype = {
         }
     },
 
-    _recreate_ui: function() {
-        this._remove_old_widgets();
-        this._create_ui();
+    _recreateUI: function() {
+        this._removeOldWidgets();
+        this._createUI();
     },
 
-    _candidate_clicked_cb: function(widget, event) {
+    _candidateClickedCB: function(widget, event) {
         this.emit('candidate-clicked',
-                  widget.candidate_index,
+                  widget.candidateIndex,
                   event.get_button(),
                   Shell.get_event_state(event));
     },
 
-    set_labels: function(labels) {
+    setLabels: function(labels) {
         if (!labels || labels.length == 0) {
             for (let i = 0; i < 16; i++) {
-                this._labels[i][0].set_text("1234567890abcdef".charAt(i) + '.');
+                this._labels[i][0].set_text('1234567890abcdef'.charAt(i) + '.');
             }
             return;
         }
 
-        for (let i = 0; j < labels.length && i < this._labels.length; i++) {
+        for (let i = 0; i < labels.length && i < this._labels.length; i++) {
+            /* Use a ClutterActor attribute of Shell's theme instead of
+             * Pango.AttrList for the lookup window GUI and 
+             * can ignore 'attrs' simply from IBus engines?
+             */
             let [text, attrs] = labels[i];
             this._labels[i][0].set_text(text);
-            this._labels[i][0].set_attributes(attrs);
         }
     },
 
-    set_candidates: function(candidates, focus_candidate, show_cursor) {
-        if (focus_candidate == undefined) {
-            focus_candidate = 0;
+    setCandidates: function(candidates, focusCandidate, showCursor) {
+        if (focusCandidate == undefined) {
+            focusCandidate = 0;
         }
-        if (show_cursor == undefined) {
-            show_cursor = true;
+        if (showCursor == undefined) {
+            showCursor = true;
         }
         if (candidates.length > this._labels.length) {
             assert();
         }
 
         for (let i = 0; i < candidates.length; i++) {
+            /* Use a ClutterActor attribute of Shell's theme instead of
+             * Pango.AttrList for the lookup window GUI and 
+             * can ignore 'attrs' simply from IBus engines?
+             */
             let [text, attrs] = candidates[i];
-            if (i == focus_candidate && show_cursor) {
+            if (i == focusCandidate && showCursor) {
                 this._labels[i][1].add_style_pseudo_class('active');
             } else {
                 this._labels[i][1].remove_style_pseudo_class('active');
@@ -187,21 +183,20 @@ StCandidateArea.prototype = {
         }
     },
 
-    set_orientation: function(orientation) {
+    setOrientation: function(orientation) {
         if (orientation == this._orientation)
             return;
         this._orientation = orientation;
-        this._recreate_ui();
+        this._recreateUI();
     },
 
-    show_all: function() {
+    showAll: function() {
         this.actor.show();
     },
 
-    hide_all: function() {
+    hideAll: function() {
         this.actor.hide();
     },
-
 };
 
 Signals.addSignalMethods(StCandidateArea.prototype);
@@ -212,346 +207,336 @@ function CandidatePanel() {
 
 CandidatePanel.prototype = {
     _init: function() {
-        let handle = new Handle.Handle();
-        handle.connect('move-end',
-                       Lang.bind(this, this._handle_move_end_cb));
-        handle.show();
+        this._orientation = Common.ORIENTATION_VERTICAL;
+        this._currentOrientation = this._orientation;
+        this._preeditVisible = false;
+        this._auxStringVisible = false;
+        this._lookupTableVisible = false; 
+        this._lookupTable = null;
 
-        this._begin_move = false;
+        this._cursorLocation = [0, 0, 0, 0];
+        this._movedCursorLocation = null; 
 
-        this._orientation = ORIENTATION_VERTICAL;
-        this._current_orientation = this._orientation;
-        this._preedit_visible = false;
-        this._aux_string_visible = false;
-        this._lookup_table_visible = false; 
-        this._preedit_string = '';
-        this._preedit_attrs = new Pango.AttrList();
-        this._aux_string = '';
-        this._aux_attrs = new Pango.AttrList();
-        this._lookup_table = null;
-
-        this._cursor_location = [0, 0, 0, 0];
-        this._moved_cursor_location = null; 
-
-        this._init_st();
+        this._initSt();
 
     },
 
-    _init_st: function() {
-        this._st_candidate_panel = new St.BoxLayout({style_class: 'candidate-panel',
-                                          vertical: true});
+    _initSt: function() {
+        this._stCandidatePanel = new St.BoxLayout({style_class: 'candidate-panel',
+                                                   vertical: true});
 
-        this._st_preedit_label = new St.Label({text: this._preedit_string});
-        if (!this._preedit_visible) {
-            this._st_preedit_label.hide();
+        this._stPreeditLabel = new St.Label({text: ''});
+        if (!this._preeditVisible) {
+            this._stPreeditLabel.hide();
         }
-        this._st_aux_label = new St.Label({text: this._aux_string});
-        if (!this._aux_visible) {
-            this._st_aux_label.hide();
+        this._stAuxLabel = new St.Label({text: ''});
+        if (!this._auxVisible) {
+            this._stAuxLabel.hide();
         }
-        this._st_candidate_panel.set_position(500, 500);
+        this._stCandidatePanel.set_position(500, 500);
         // create candidates area
-        this._st_candidate_area = new StCandidateArea(this._current_orientation);
-        this._st_candidate_area.connect('candidate-clicked', 
-                                        Lang.bind(this, function(x, i, b, s) {
-                                                      this.emit('candidate-clicked', i, b, s);}));
-        this.update_lookup_table(this._lookup_table, this._lookup_table_visible);
+        this._stCandidateArea = new StCandidateArea(this._currentOrientation);
+        this._stCandidateArea.connect('candidate-clicked', 
+                                      Lang.bind(this, function(x, i, b, s) {
+                                                this.emit('candidate-clicked', i, b, s);}));
+        this.updateLookupTable(this._lookupTable, this._lookupTableVisible);
 
-        // // create state label
-        // this._state_label = new Gtk.Label({ label: '' });
-        // this._state_label.set_size_request(20, -1);
+        // TODO: page up/down GUI
 
-        // // create buttons
-        // this._prev_button = new Gtk.Button();
-        // this._prev_button.connect('clicked', Lang.bind(this, function(x) {
-        //     this.emit('page-up');}));
-        // this._prev_button.set_relief(Gtk.ReliefStyle.NONE);
-        // this._prev_button.set_tooltip_text(_("Previous page"));
-
-        // this._next_button = new Gtk.Button();
-        // this._next_button.connect('clicked', Lang.bind(this, function(x) {
-        //     this.emit('page-down');}));
-        // this._next_button.set_relief(Gtk.ReliefStyle.NONE);
-        // this._next_button.set_tooltip_text(_("Next page"));
-
-        this._pack_all_st_widgets();
-        Main.chrome.addActor(this._st_candidate_panel,
-                            { visibleInOverview: true,
-                              affectsStruts: false});
-        this._check_show_states();
+        this._packAllStWidgets();
+        Main.uiGroup.add_actor(this._stCandidatePanel);
+        this._checkShowStates();
     },
 
-    _pack_all_st_widgets: function() {
-        this._st_candidate_panel.add(this._st_preedit_label,
-                                     {x_fill: true,
-                                      y_fill: false,
-                                      x_align: St.Align.MIDDLE,
-                                      y_align: St.Align.START});
-        this._st_candidate_panel.add(this._st_aux_label,
-                                     {x_fill: true,
-                                      y_fill: false,
-                                      x_align: St.Align.MIDDLE,
-                                      y_align: St.Align.MIDDLE});
-        this._st_candidate_panel.add(this._st_candidate_area.actor,
-                                     {x_fill: true,
-                                      y_fill: false,
-                                      x_align: St.Align.MIDDLE,
-                                      y_align: St.Align.END});
+    _packAllStWidgets: function() {
+        this._stCandidatePanel.add(this._stPreeditLabel,
+                                   {x_fill: true,
+                                    y_fill: false,
+                                    x_align: St.Align.MIDDLE,
+                                    y_align: St.Align.START});
+        this._stCandidatePanel.add(this._stAuxLabel,
+                                   {x_fill: true,
+                                    y_fill: false,
+                                    x_align: St.Align.MIDDLE,
+                                    y_align: St.Align.MIDDLE});
+        this._stCandidatePanel.add(this._stCandidateArea.actor,
+                                   {x_fill: true,
+                                    y_fill: false,
+                                    x_align: St.Align.MIDDLE,
+                                    y_align: St.Align.END});
     },
 
-    _handle_move_end_cb: function(handle) {
-        // store moved location
-        let [x, y] = this._st_candidate_area.get_position();
-        this._moved_cursor_location = [x, y,
-                                       this._cursor_location[2],
-                                       this._cursor_location[3]];
+    showPreeditText: function() {
+        this._preeditVisible = true;
+        this._stPreeditLabel.show();
+        this._checkShowStates();
     },
 
-    show_preedit_text: function() {
-        this._preedit_visible = true;
-        this._st_preedit_label.show();
-        this._check_show_states();
+    hidePreeditText: function() {
+        this._preeditVisible = false;
+        this._stPreeditLabel.hide();
+        this._checkShowStates();
     },
 
-    hide_preedit_text: function() {
-        this._preedit_visible = false;
-        this._st_preedit_label.hide();
-        this._check_show_states();
-    },
-
-    update_preedit_text: function(text, cursor_pos, visible) {
-        let attrs = new PangoAttrList(text.get_attributes(), text.get_text());
+    updatePreeditText: function(text, cursorPos, visible) {
         if (visible) {
-            this.show_preedit_text();
+            this.showPreeditText();
         } else {
-            this.hide_preedit_text();
+            this.hidePreeditText();
         }
-        this._preedit_stribg = text.get_text();
-        this._st_preedit_label.set_text(text.get_text());
-        this._preedit_attrs = attrs;
+        let str = text.get_text();
+        this._stPreeditLabel.set_text(str);
+
+        let attrs = text.get_attributes();
+        for (let i = 0; attrs != null && attrs.get(i) != null; i++) {
+            let attr = attrs.get(i);
+            if (attr.get_attr_type() == IBus.AttrType.BACKGROUND) {
+                let startIndex = attr.get_start_index();
+                let endIndex = attr.get_end_index();
+                let len = GLib.utf8_strlen(str, -1);
+                let markup = '';
+                if (startIndex == 0 &&
+                    endIndex == GLib.utf8_strlen(str, -1)) {
+                    markup = markup.concat(str);
+                } else {
+                    if (startIndex > 0) {
+                        markup = markup.concat(GLib.utf8_substring(str,
+                                                                   0,
+                                                                   startIndex));
+                    }
+                    if (startIndex != endIndex) {
+                        markup = markup.concat('<span background=\"#555555\">');
+                        markup = markup.concat(GLib.utf8_substring(str,
+                                                                   startIndex,
+                                                                   endIndex));
+                        markup = markup.concat('</span>');
+                    }
+                    if (endIndex < len) {
+                        markup = markup.concat(GLib.utf8_substring(str,
+                                                                   endIndex,
+                                                                   len));
+                    }
+                }
+                let clutter_text = this._stPreeditLabel.get_clutter_text();
+                clutter_text.set_markup(markup);
+                clutter_text.queue_redraw();
+            }
+        }
     },
 
-    show_auxiliary_text: function() {
-        this._aux_string_visible = true;
-        this._st_aux_label.show();
-        this._check_show_states();
+    showAuxiliaryText: function() {
+        this._auxStringVisible = true;
+        this._stAuxLabel.show();
+        this._checkShowStates();
     },
 
-    hide_auxiliary_text: function() {
-        this._aux_string_visible = false;
-        this._st_aux_label.hide();
-        this._check_show_states();
+    hideAuxiliaryText: function() {
+        this._auxStringVisible = false;
+        this._stAuxLabel.hide();
+        this._checkShowStates();
     },
 
-    update_auxiliary_text: function(text, show) {
-        let attrs = new PangoAttrList(text.get_attributes(), text.get_text());
-
+    updateAuxiliaryText: function(text, show) {
         if (show) {
-            this.show_auxiliary_text();
+            this.showAuxiliaryText();
         } else {
-            this.hide_auxiliary_text();
+            this.hideAuxiliaryText();
         }
 
-        this._aux_string = text.get_text();
-        this._st_aux_label.set_text(text.get_text());
-        this._aux_attrs = attrs;
+        this._stAuxLabel.set_text(text.get_text());
     },
 
-    _refresh_labels: function() {
-        let new_labels = [];
-        for (let i = 0; this._lookup_table.get_label(i) != null; i++) {
-            let label = this._lookup_table.get_label(i);
-            new_labels[new_labels.length] = [label.get_text(),
-                                             new PangoAttrList(label.get_attributes(), label.get_text()).get_raw()];
+    _refreshLabels: function() {
+        let newLabels = [];
+        for (let i = 0; this._lookupTable.get_label(i) != null; i++) {
+            let label = this._lookupTable.get_label(i);
+            newLabels.push([label.get_text(), label.get_attributes()]);
         }
-        this._st_candidate_area.set_labels(new_labels);
+        this._stCandidateArea.setLabels(newLabels);
     },
 
 
-    _get_candidates_in_current_page: function() {
-        let cursor_pos = this._lookup_table.get_cursor_pos();
-        let page_size = this._lookup_table.get_page_size();
-        let page = ((cursor_pos == 0) ? 0 : Math.floor(cursor_pos / page_size));
-        let start_index = page * page_size;
-        let end_index = Math.min((page + 1) * page_size,
-                                 this._lookup_table.get_number_of_candidates());
+    _getCandidatesInCurrentPage: function() {
+        let cursorPos = this._lookupTable.get_cursor_pos();
+        let pageSize = this._lookupTable.get_page_size();
+        let page = ((cursorPos == 0) ? 0 : Math.floor(cursorPos / pageSize));
+        let startIndex = page * pageSize;
+        let endIndex = Math.min((page + 1) * pageSize,
+                                this._lookupTable.get_number_of_candidates());
         let candidates = [];
-        for (let i = start_index; i < end_index; i++) {
-            candidates[candidates.length] = this._lookup_table.get_candidate(i);
+        for (let i = startIndex; i < endIndex; i++) {
+            candidates.push(this._lookupTable.get_candidate(i));
         }
         return candidates;
     },
 
-    _get_cursor_pos_in_current_page: function() {
-        let cursor_pos = this._lookup_table.get_cursor_pos();
-        let page_size = this._lookup_table.get_page_size();
-        let pos_in_page = cursor_pos % page_size;
-        return pos_in_page;
+    _getCursorPosInCurrentPage: function() {
+        let cursorPos = this._lookupTable.get_cursor_pos();
+        let pageSize = this._lookupTable.get_page_size();
+        let posInPage = cursorPos % pageSize;
+        return posInPage;
     },
 
-    _refresh_candidates: function() {
-        let candidates = this._get_candidates_in_current_page();
-        let new_candidates = [];
+    _refreshCandidates: function() {
+        let candidates = this._getCandidatesInCurrentPage();
+        let newCandidates = [];
         for (let i = 0; i < candidates.length; i++) {
             let candidate = candidates[i];
-            new_candidates[new_candidates.length] = [candidate.get_text(),
-                                                     new PangoAttrList(candidate.get_attributes(), candidate.get_text()).get_raw()];
+            newCandidates.push([candidate.get_text(),
+                                candidate.get_attributes()]);
         }
-        this._st_candidate_area.set_candidates(new_candidates,
-                                               this._get_cursor_pos_in_current_page(),
-                                               this._lookup_table.is_cursor_visible()
-                                              );
+        this._stCandidateArea.setCandidates(newCandidates,
+                                            this._getCursorPosInCurrentPage(),
+                                            this._lookupTable.is_cursor_visible());
     },
 
-    update_lookup_table: function(lookup_table, visible) {
+    updateLookupTable: function(lookupTable, visible) {
         // hide lookup table
         if (!visible) {
-            this.hide_lookup_table();
+            this.hideLookupTable();
         }
 
-        this._lookup_table = lookup_table || new IBus.LookupTable();
-        let orientation = this._lookup_table.get_orientation();
-        if (orientation != ORIENTATION_HORIZONTAL &&
-            orientation != ORIENTATION_VERTICAL) {
+        this._lookupTable = lookupTable || new IBus.LookupTable();
+        let orientation = this._lookupTable.get_orientation();
+        if (orientation != Common.ORIENTATION_HORIZONTAL &&
+            orientation != Common.ORIENTATION_VERTICAL) {
             orientation = this._orientation;
         }
-        this.set_current_orientation(orientation);
-        this._refresh_candidates();
-        this._refresh_labels();
+        this.setCurrentOrientation(orientation);
+        this._refreshCandidates();
+        this._refreshLabels();
 
         // show lookup table
         if (visible) {
-            this.show_lookup_table();
+            this.showLookupTable();
         }
     },
 
-    show_lookup_table: function() {
-        this._lookup_table_visible = true;
-        this._st_candidate_area.show_all();
-        this._check_show_states();
+    showLookupTable: function() {
+        this._lookupTableVisible = true;
+        this._stCandidateArea.showAll();
+        this._checkShowStates();
     },
 
-    hide_lookup_table: function() {
-        this._lookup_table_visible = false;
-        this._st_candidate_area.hide_all();
-        this._check_show_states();
+    hideLookupTable: function() {
+        this._lookupTableVisible = false;
+        this._stCandidateArea.hideAll();
+        this._checkShowStates();
     },
 
-    page_up_lookup_table: function() {
-        this._lookup_table.page_up();
-        this._refresh_candidates();
+    pageUpLookupTable: function() {
+        this._lookupTable.page_up();
+        this._refreshCandidates();
     },
 
-    page_down_lookup_table: function() {
-        this._lookup_table.page_down();
-        this._refresh_candidates();
+    pageDownLookup_table: function() {
+        this._lookupTable.page_down();
+        this._refreshCandidates();
     },
 
-    cursor_up_lookup_table: function() {
-        this._lookup_table.cursor_up();
-        this._refresh_candidates();
+    cursorUpLookupTable: function() {
+        this._lookupTable.cursor_up();
+        this._refreshCandidates();
     },
 
-    cursor_down_lookup_table: function() {
-        this._lookup_table.cursor_down();
-        this._refresh_candidates();
+    cursorDownLookupTable: function() {
+        this._lookupTable.cursor_down();
+        this._refreshCandidates();
     },
 
-    set_cursor_location: function(x, y, w, h) {
+    setCursorLocation: function(x, y, w, h) {
         // if cursor location is changed, we reset the moved cursor location
-        if (this._cursor_location != [x, y, w, h]) {
-            this._cursor_location = [x, y, w, h];
-            this._moved_cursor_location = null;
-            this._check_position();
+        if (this._cursorLocation.join() != [x, y, w, h].join()) {
+            this._cursorLocation = [x, y, w, h];
+            this._movedCursorLocation = null;
+            this._checkPosition();
         }
     },
 
-    _check_show_states: function() {
-        if (this._preedit_visible ||
-            this._aux_string_visible ||
-            this._lookup_table_visible) {
-            this._st_candidate_panel.show();
-            this._check_position();
+    _checkShowStates: function() {
+        if (this._preeditVisible ||
+            this._auxStringVisible ||
+            this._lookupTableVisible) {
+            this._stCandidatePanel.show();
+            this._checkPosition();
             this.emit('show');
         } else {
-            this._st_candidate_panel.hide();
+            this._stCandidatePanel.hide();
             this.emit('hide');
         }
     },
 
     reset: function() {
         let text = IBus.Text.new_from_string('');
-        this.update_preedit_text(text, 0, false);
-        text.unref();
+        this.updatePreeditText(text, 0, false);
         text = IBus.Text.new_from_string('');
-        this.update_auxiliary_text(text, false);
-        text.unref();
-        this.update_lookup_table(null, false);
-        this.hide();
+        this.updateAuxiliaryText(text, false);
+        this.updateLookupTable(null, false);
+        this.hideAll();
     },
 
-    set_current_orientation: function(orientation) {
-        if (this._current_orientation == orientation) {
+    setCurrentOrientation: function(orientation) {
+        if (this._currentOrientation == orientation) {
             return;
         }
-        this._current_orientation = orientation;
-        this._st_candidate_area.set_orientation(orientation);
+        this._currentOrientation = orientation;
+        this._stCandidateArea.setOrientation(orientation);
     },
 
-    set_orientation: function(orientation) {
+    setOrientation: function(orientation) {
         this._orientation = orientation;
-        this.update_lookup_table(this._lookup_table, this._lookup_table_visible);
+        this.updateLookupTable(this._lookupTable, this._lookupTableVisible);
     },
 
-    get_current_orientation: function() {
-        return this._current_orientation;
+    getCurrentOrientation: function() {
+        return this._currentOrientation;
     },
 
-    _check_position: function() {
-        let cursor_location = this._moved_cursor_location || this._cursor_location;
-        let cursor_right = cursor_location[0] + cursor_location[2];
-        let cursor_bottom = cursor_location[1] + cursor_location[3];
+    _checkPosition: function() {
+        let cursorLocation = this._movedCursorLocation || this._cursorLocation;
+        let cursorRight = cursorLocation[0] + cursorLocation[2];
+        let cursorBottom = cursorLocation[1] + cursorLocation[3];
 
-        let window_right = cursor_right + this._st_candidate_panel.get_width();
-        let window_bottom = cursor_bottom + this._st_candidate_panel.get_height();
-        let root_window = Gdk.get_default_root_window();
-        let [sx, sy] = [root_window.get_width(), root_window.get_height()];
+        let windowRight = cursorRight + this._stCandidatePanel.get_width();
+        let windowBottom = cursorBottom + this._stCandidatePanel.get_height();
+        let rootWindow = Gdk.get_default_root_window();
+        let [sx, sy] = [rootWindow.get_width(), rootWindow.get_height()];
         let x = 0;
         let y = 0;
 
-        if (window_right > sx) {
-            x = sx - this._st_candidate_panel.get_width();
+        if (windowRight > sx) {
+            x = sx - this._stCandidatePanel.get_width();
         } else {
-            x = cursor_right;
+            x = cursorRight;
         }
 
-        if (window_bottom > sy) {
+        if (windowBottom > sy) {
             // move the window just above the cursor so the window and a preedit string do not overlap.
             /* FIXME: pad would not be needed. */
             let pad = 20; 
-            if (this._current_orientation == ORIENTATION_VERTICAL) {
+            if (this._currentOrientation == Common.ORIENTATION_VERTICAL) {
                 pad = 10;
             }
-            y = Math.min(cursor_location[1] - pad, sy) - 
-                this._st_candidate_panel.get_height();
+            y = Math.min(cursorLocation[1] - pad, sy) - 
+                this._stCandidatePanel.get_height();
         } else {
-            y = cursor_bottom;
+            y = cursorBottom;
         }
 
         this.move(x, y);
     },
 
-    show_all: function() {
-        this._st_candidate_panel.show();
+    showAll: function() {
+        this._stCandidatePanel.show();
     },
 
-    hide_all: function() {
-        this._st_candidate_panel.hide();
+    hideAll: function() {
+        this._stCandidatePanel.hide();
     },
 
     move: function(x, y) {
-        this._st_candidate_panel.set_position(x, y);
-    },
+        this._stCandidatePanel.set_position(x, y);
+    }
 };
 
 Signals.addSignalMethods(CandidatePanel.prototype);

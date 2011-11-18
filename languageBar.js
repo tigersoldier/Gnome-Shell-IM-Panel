@@ -32,22 +32,13 @@ function LanguageBar(indicator) {
 LanguageBar.prototype = {
     _init: function(indicator) {
         this._enabled = false;
-        this._im_name = null;
+        this._imName = null;
         this._props = null;
         this._indicator = indicator;
-
-        this._properties = [];
+        this._menuItems = [];
     },
 
-    _remove_properties: function() {
-        // reset all properties
-        for (let i = 0; i < this._properties.length; i++) {
-            this._properties[i].destroy();
-        }
-        this._properties = [];
-    },
-
-    _replace_property: function(old_prop, new_prop) {
+    _replaceProperty: function(old_prop, new_prop) {
         old_prop.set_label(new_prop.get_label());
         old_prop.set_icon(new_prop.get_icon());
         old_prop.set_tooltip(new_prop.get_tooltip());
@@ -57,50 +48,46 @@ LanguageBar.prototype = {
         old_prop.set_sub_props(new_prop.get_sub_props());
     },
 
-    _on_item_property_activate: function(w, n, s) {
+    _onItemPropertyActivate: function(w, n, s) {
         this.emit('property-activate', n, s);
     },
 
-    _on_item_show_engine_about: function(w, n, s) {
+    _onItemShowEngineAbout: function(w, n, s) {
         this.emit('show-engine-about');
     },
 
-    set_im_name: function(text) {
-        this._im_name = text
+    setIMName: function(text) {
+        this._imName = text
     },
 
-    reset: function() {
-        this._remove_properties();
-    },
-
-    set_enabled: function(enabled) {
+    setEnabled: function(enabled) {
         this._enabled = enabled;
     },
 
-    is_enabled: function() {
+    isEnabled: function() {
         return this._enabled;
     },
 
-    register_properties: function(props) {
+    registerProperties: function(props) {
         this._props = props;
     },
 
-    update_property: function(prop) {
+    updateProperty: function(prop) {
         if (this._props) {
             for (let i = 0; this._props.get(i) != null; i++) {
                 let p = this._props.get(i);
                 if (p.get_key() == prop.get_key() && p.get_prop_type() == prop.get_prop_type()) {
-                    this._replace_property(p, prop);
+                    this._replaceProperty(p, prop);
                     break;
                 }
             }
         }
-        for (let i = 0; i < this._properties.length; i++) {
-            this._properties[i].update_property(prop);
+        for (let i = 0; i < this._menuItems.length; i++) {
+            this._menuItems[i].updateProperty(prop);
         }
     },
 
-    create_im_menu_shell: function() {
+    createIMMenuShell: function() {
         if (!this._enabled) {
             return;
         }
@@ -110,10 +97,12 @@ LanguageBar.prototype = {
             return;
         }
 
-        this._remove_properties();
+        // Do not have to init this._menuItems here because panel always
+        // calls _indicator.menu.removeAll.
+
         let item = null;
         let prop = null;
-        let radio_group = [];
+        let radioGroup = [];
 
         for (let i = 0; props.get(i) != null; i++) {
             prop = props.get(i);
@@ -124,27 +113,27 @@ LanguageBar.prototype = {
                 item = new ShellMenu.CheckShellMenuItem(prop);
             }
             else if (prop.get_prop_type() == IBus.PropType.RADIO) {
-                item = new ShellMenu.RadioShellMenuItem(radio_group, prop);
-                radio_group[radio_group.length] = item;
-                for (let j = 0; j < radio_group.length; j++) {
-                    radio_group[j].set_group(radio_group);
+                item = new ShellMenu.RadioShellMenuItem(radioGroup, prop);
+                radioGroup.push(item);
+                for (let j = 0; j < radioGroup.length; j++) {
+                    radioGroup[j].setGroup(radioGroup);
                 }
             }
             else if (prop.get_prop_type() == IBus.PropType.SEPARATOR) {
                 item = new ShellMenu.SeparatorShellMenuItem();
-                radio_group = null;
+                radioGroup = null;
             }
             else if (prop.get_prop_type() == IBus.PropType.MENU) {
                 let submenu = new ShellMenu.ShellMenu(prop);
                 submenu.connect('property-activate',
-                                Lang.bind(this, this._on_item_property_activate));
+                                Lang.bind(this, this._onItemPropertyActivate));
                 item = submenu;
             }
             else {
                 IBusException('Unknown property type = %d' % prop.get_prop_type());
             }
 
-            item.set_sensitive(prop.get_sensitive());
+            item.setSensitive(prop.get_sensitive());
 
             if (prop.get_visible()) {
                 item.show();
@@ -152,17 +141,16 @@ LanguageBar.prototype = {
                 item.hide();
             }
 
-            //this._properties[this._properties.length] = item;
-            //menu.insert(item.get_raw(), 0);
-            this._indicator.menu.addMenuItem(item.get_raw());
+            this._menuItems.push(item);
+            this._indicator.menu.addMenuItem(item.getRaw());
             item.connect('property-activate',
-                         Lang.bind(this, this._on_item_property_activate));
+                         Lang.bind(this, this._onItemPropertyActivate));
         }
 
         if (props.get(0) != null) {
-            this._indicator.menu.addMenuItem(new ShellMenu.SeparatorShellMenuItem().get_raw());
+            this._indicator.menu.addMenuItem(new ShellMenu.SeparatorShellMenuItem().getRaw());
         }
-    },
+    }
 };
 
 Signals.addSignalMethods(LanguageBar.prototype);

@@ -18,15 +18,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-const Gettext = imports.gettext.domain('gnome-shell');
-const _ = Gettext.gettext;
-
 // define orientation
 const ORIENTATION_HORIZONTAL  = 0;
 const ORIENTATION_VERTICAL    = 1;
 const ORIENTATION_SYSTEM      = 2;
 
-function actor_set_sensitive(actor, sensitive, label) {
+function actorSetSensitive(actor, sensitive, label) {
     actor.set_reactive(sensitive);
     if (label != null) {
         if (sensitive) {

@@ -19,80 +19,22 @@
  */
 
 const St = imports.gi.St;
-const Signals = imports.signals;
-const PopupBaseMenuItem = imports.ui.popupMenu.PopupBaseMenuItem;
-const PopupMenu = imports.ui.popupMenu.PopupMenu;
+const PopupMenu = imports.ui.popupMenu;
 
 
-function PopupImageMenuItemMarkup(text, iconName) {
-    this._init(text, iconName);
+function PopupActorMenuItem(text, actor) {
+    this._init(text, actor);
 }
 
-/* We'd like to show the markup text likes bold type. */
-PopupImageMenuItemMarkup.prototype = {
-    __proto__: PopupBaseMenuItem.prototype,
+/* We'd like to add an actor at the end. */
+PopupActorMenuItem.prototype = {
+    __proto__: PopupMenu.PopupBaseMenuItem.prototype,
 
-    _init: function (text, iconName) {
-        PopupBaseMenuItem.prototype._init.call(this);
+    _init: function (text, actor) {
+        PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
 
         this.label = new St.Label({ text: text });
-        let clutter_text = this.label.get_clutter_text();
-        clutter_text.set_markup(text);
         this.addActor(this.label);
-        this._icon = new St.Icon({ style_class: 'popup-menu-icon' });
-        this.addActor(this._icon, { align: St.Align.END });
-
-        this.setIcon(iconName);
-    },
-
-    setIcon: function(name) {
-        this._icon.icon_name = name;
+        this.addActor(actor, { align: St.Align.END });
     }
-};
-
-function PopupMenuNoOpenStateChanged() {
-    this._init.apply(this, arguments);
-}
-
-/* This class and PopupMenu.PopupMenu are almost same but this does not emit
- * open-state-changed signal because PopupMenu.PopupMenuManager catch 
- * the signal and Main.pushModal() is called in _grab().
- * Input method needs to keep the focus on the text application to get the
- * current GtkIMContext so the grab methods need to be avoided. */
-PopupMenuNoOpenStateChanged.prototype = {
-    __proto__: PopupMenu.prototype,
-
-    _init: function(sourceActor, alignment, arrowSide, gap) {
-        PopupMenu.prototype._init.call(this, sourceActor, alignment, arrowSide, gap);
-    },
-
-    open: function(animate) {
-        if (this.isOpen)
-            return;
-
-        this.isOpen = true;
-
-        this._boxPointer.setPosition(this.sourceActor, this._gap, this._alignment);
-        this._boxPointer.show(animate);
-
-        /* This does not emit open-state-changed to keep the focus on
-         * text applications. */
-        this.emit('my-open-state-changed', true);
-    },
-
-    close: function(animate) {
-        if (!this.isOpen)
-            return;
-
-        if (this._activeMenuItem)
-            this._activeMenuItem.setActive(false);
-
-        this._boxPointer.hide(animate);
-
-        this.isOpen = false;
-
-        /* This does not emit open-state-changed to keep the focus on
-         * text applications. */
-        this.emit('my-open-state-changed', false);
-    },
 };

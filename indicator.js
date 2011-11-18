@@ -25,26 +25,9 @@ const Lang = imports.lang;
 const Signals = imports.signals;
 
 const Extension = imports.ui.extensionSystem.extensions["gjsimp@tigersoldier"];
-const SystemStatusLabelButton = Extension.panelMenu.SystemStatusLabelButton;
-const Panel = Extension.panel;
+const PanelMenu = Extension.panelMenu;
+const IBusPanel = Extension.ibusPanel;
 
-const UIApplicationIface = {
-    name: IBus.SERVICE_PANEL,
-    methods: [],
-    signals: [{ name: 'NameOwnerChanged',
-                inSignature: 'sss',
-                outSignature: ''
-              },
-              { name: 'NameLost',
-                inSignature: 's',
-                outSignature: ''
-              },
-              { name: 'NameAcquired',
-                inSignature: 's',
-                outSignature: ''
-              }],
-    properties: []
-};
 
 function UIApplication(indicator) {
     this._init(indicator);
@@ -53,35 +36,37 @@ function UIApplication(indicator) {
 UIApplication.prototype = {
     _init: function(indicator) {
         IBus.init();
-        this._indicator = indicator;
-        DBus.session.exportObject(IBus.PATH_PANEL,
-                                  this);
-        this._init_bus();
-        this._init_panel();
-    },
-
-    _init_bus: function() {
         this._bus = new IBus.Bus();
-        this._is_connected = false;
-        this._bus.connect('connected',
-                          Lang.bind(this, this._connected_cb));
-        this._bus.connect('disconnected',
-                          Lang.bind(this, this._disconnect_cb));
-        if (this._bus.is_connected()) {
-            this._connected_cb();
+        this._indicator = indicator;
+        this._hasInited = false;
+        DBus.session.exportObject('/org/freedesktop/IBus/Panel',
+                                  this);
+
+        if (this._bus.is_connected() == false) {
+            log('ibus-daemon is not running');
+            return;
         }
+
+        this._initPanel(false);
+        this._hasInited = true;
     },
 
-    _init_panel: function() {
-        let match_rule = "type='signal',\
-                         sender='org.freedesktop.IBus',\
-                         path='/org/freedesktop/IBus'";
-        this._bus.add_match(match_rule);
-        match_rule = "type='signal',\
-                     sender='org.freedesktop.IBus',\
-                     member='NameLost',\
-                     arg0='" + IBus.SERVICE_PANEL + "'";
-        this._bus.add_match(match_rule);
+    _initPanel: function(isRestart) {
+        if (isRestart == false) {
+            this._bus.connect('disconnected',
+                              Lang.bind(this, this._disconnectCB));
+            this._bus.connect('connected',
+                              Lang.bind(this, this._connectCB));
+        }
+        let matchRule = "type='signal',\
+                        sender='org.freedesktop.IBus',\
+                        path='/org/freedesktop/IBus'";
+        this._bus.add_match(matchRule);
+        matchRule = "type='signal',\
+                    sender='org.freedesktop.IBus',\
+                    member='NameLost',\
+                    arg0='" + IBus.SERVICE_PANEL + "'";
+        this._bus.add_match(matchRule);
         this._bus.request_name(IBus.SERVICE_PANEL,
                                IBus.BusNameFlag.ALLOW_REPLACEMENT |
                                IBus.BusNameFlag.REPLACE_EXISTING);
@@ -90,10 +75,10 @@ UIApplication.prototype = {
             return;
         }
 
-        if (this._panel) {
+        if (isRestart) {
             this._panel.restart(this._bus);
         } else {
-            this._panel = new Panel.Panel(this._bus, this._indicator);
+            this._panel = new IBusPanel.IBusPanel(this._bus, this._indicator);
         }
 
         this._bus.get_connection().signal_subscribe('org.freedesktop.DBus',
@@ -102,98 +87,121 @@ UIApplication.prototype = {
                                                     '/org/freedesktop/DBus',
                                                     IBus.SERVICE_PANEL,
                                                     Gio.DBusSignalFlags.NONE,
-                                                    Lang.bind(this, this._name_lost_cb),
-                                                    null,
-                                                    null);
-        this._bus.get_connection().signal_subscribe('org.freedesktop.DBus',
-                                                    'org.freedesktop.DBus',
-                                                    'NameAcquired',
-                                                    '/org/freedesktop/DBus',
-                                                    IBus.SERVICE_PANEL,
-                                                    Gio.DBusSignalFlags.NONE,
-                                                    Lang.bind(this, this._name_acquired_cb),
+                                                    Lang.bind(this, this._nameLostCB),
                                                     null,
                                                     null);
     },
 
-    _disconnect_cb: function() {
-        this._is_connected = false;
-        if (this._panel.is_restart()) {
+    _disconnectCB: function() {
+        this._hasInited = false;
+        if (this._panel.isRestart()) {
             this.emit('restart');
             return;
         }
         this.emit('disconnected');
     },
 
-    _name_lost_cb: function() {
+    /* If this receives the 'connected' signal from bus, it always
+     * restarts the panel because all causes indicates the restart.
+     *
+     * Case#1: Click 'Quit' from ibus panel menu.
+     * Result#1: No 'connected' signal.
+     * Case#2: Click 'Restart' from ibus panel menu.
+     * Result#2: 'connected' signal will be emitted after 'new IBus.Bus()'.
+     * Case#3: Run 'ibus-daemon --xim --replace'
+     * Result#3: 'connected' signal will be emitted after 'disconnected'
+     *           signal is emitted.
+     * Case#4: Run 'imsettings-switch -rnq'
+     * Result#4: 'connected' signal will be emitted after 'disconnected'
+     *           signal is emitted.
+     * Case#5: Run 'imsettings-switch ibus' after 'imsettings-switch none'
+     * Result#5: 'connected' signal will be emitted after 'disconnected'
+     *           signal is emitted.
+     */
+    _connectCB: function() {
+        this.emit('connected');
+        this._initPanel(true);
+        this._hasInited = true;
+        this.emit('restart-connected');
+    },
+
+    _nameLostCB: function() {
         this.emit('name-lost');
     },
 
-    _name_acquired_cb: function() {
-        this.emit('name-acquired');
-    },
-
-    _connected_cb: function() {
-        this._is_connected = true;
-        this._init_panel();
-        this.emit('connected');
-    },
-
-    is_connected: function() {
-        return this._is_connected;
+    hasInited: function() {
+        return this._hasInited;
     },
 
     restart: function() {
-        this._init_panel();
-    },
+        if (this._bus) {
+            this._bus.destroy();
+        }
+        this._bus = new IBus.Bus();
 
+        this._bus.connect('connected',
+                          Lang.bind(this, this._connectCB));
+        this._bus.connect('disconnected',
+                          Lang.bind(this, this._disconnectCB));
+        if (this._bus.is_connected() == false) {
+            return;
+        }
+        this._connectCB();
+    }
 };
 
 Signals.addSignalMethods(UIApplication.prototype);
-DBus.conformExport(UIApplication.prototype, UIApplicationIface);
 
 function Indicator() {
-    this._init.apply(this, arguments);
+    this._init();
 }
 
 Indicator.prototype = {
-    __proto__: SystemStatusLabelButton.prototype,
+    __proto__: PanelMenu.SystemStatusLabelButton.prototype,
 
     _init: function() {
-        SystemStatusLabelButton.prototype._init.call(this, null, 'dummy', null);
+        PanelMenu.SystemStatusLabelButton.prototype._init.call(this, null,
+                                                               'dummy', null);
         this._uiapplication = new UIApplication(this);
-        if (!this._uiapplication.is_connected()) {
+        if (!this._uiapplication.hasInited()) {
             this.actor.hide();
-            log('UIApplication not initialized');
+            return;
         }
-        this._uiapplication.connect('disconnected',
-                                    Lang.bind(this, this._disconnect_cb));
-        this._uiapplication.connect('restart',
-                                    Lang.bind(this, this._restart_cb));
+        this._address = IBus.get_address();
         this._uiapplication.connect('connected',
-                                    Lang.bind(this, this._connected_cb));
+                                    Lang.bind(this, this._connectCB));
+        this._uiapplication.connect('disconnected',
+                                    Lang.bind(this, this._disconnectCB));
+        this._uiapplication.connect('restart',
+                                    Lang.bind(this, this._restartCB));
+        this._uiapplication.connect('restart-connected',
+                                    Lang.bind(this, this._restartConnectedCB));
         this._uiapplication.connect('name-lost',
-                                    Lang.bind(this, this._name_lost_cb));
+                                    Lang.bind(this, this._nameLostCB));
     },
 
-    _disconnect_cb: function() {
-        this.actor.hide();
+    _connectCB: function() {
+        log('Got connected signal from DBus');
+        this.actor.show();
+    },
+
+    _disconnectCB: function() {
         log('Got disconnected signal from DBus');
+        this.menu.close();
+        this.actor.hide();
     },
 
-    _restart_cb: function() {
+    _restartCB: function() {
         log('Restarting ibus panel');
         this.menu.close();
         this._uiapplication.restart();
     },
 
-    _connected_cb: function() {
-        this.actor.show();
-        log('Connect to ibus panel');
+    _restartConnectedCB: function() {
+        log('Restarted ibus panel');
     },
 
-    _name_lost_cb: function() {
-        this.actor.hide();
+    _nameLostCB: function() {
         log('Got NameLost signal from DBus');
-    },
+    }
 };

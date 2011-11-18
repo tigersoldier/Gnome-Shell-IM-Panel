@@ -22,13 +22,15 @@ function PropItem(prop) {
     this._init(prop);
 }
 
+/* This class provides _prop attribute and updateProperty function
+ * for shellMenu.ShellMenu. */
 PropItem.prototype = {
     _init: function(prop) {
         this._prop = prop;
-        this._sub_items = [];
+        this._subItems = [];
     },
 
-    update_property: function(prop) {
+    updateProperty: function(prop) {
         if (this._prop == null) {
             return false;
         }
@@ -37,38 +39,38 @@ PropItem.prototype = {
 
         if (this._prop.get_key() == prop.get_key() && this._prop.get_prop_type() == prop.get_prop_type()) {
             this._prop = prop;
-            this.property_changed();
+            this.propertyChanged();
             retval =  true;
         }
 
-        for (let i = 0; i < this._sub_items.length; i++) {
-            this._subitems[i].update_property(prop);
+        for (let i = 0; i < this._subItems.length; i++) {
+            this._subItems[i].updateProperty(prop);
             retval = true;
         }
 
         return retval;
     },
 
-    set_prop_label: function(label) {
+    setPropLabel: function(label) {
         this._prop.set_label(label);
-        this.property_changed();
+        this.propertyChanged();
     },
 
-    set_icon: function(icon) {
+    setIcon: function(icon) {
         this._prop.set_icon(icon);
-        this.property_changed();
+        this.propertyChanged();
     },
 
-    set_tooltip: function(tooltip) {
+    setTooltip: function(tooltip) {
         this._prop.set_tooltip(tooltip);
-        this.property_changed();
+        this.propertyChanged();
     },
 
-    set_state: function(state) {
+    setState: function(state) {
         this._prop.set_state(state);
-        this.property_changed();
+        this.propertyChanged();
     },
 
-    property_changed: function() {
-    },
+    propertyChanged: function() {
+    }
 };
