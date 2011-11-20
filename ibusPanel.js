@@ -146,7 +146,8 @@ IBusPanel.prototype = {
         this._disabledEnginesPrevID = -1;
         this._disabledEnginesSwapped = 0;
         this._xkbGroupID = -1;
-        
+
+        this._xkblayout = new XKBLayout.XKBLayout(this._config);
         if (!this._useSysLayoutSystem) {
             this._useSysLayoutUser = false;
             return true;
@@ -285,7 +286,7 @@ IBusPanel.prototype = {
     },
 
     _createShellMenuForPopup: function() {
-        let item = new PopupMenu.PopupImageMenuItem(_("Preferences"),
+        let item = new PopupMenu.PopupImageMenuItem(_("Input Method Preferences"),
                                                     'preferences-desktop');
         item.connect('activate',
                      Lang.bind(this, this._preferencesItemShellActivateCB));

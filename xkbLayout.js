@@ -68,7 +68,7 @@ XKBLayout.prototype = {
         this._xkbLatinLayouts = [];
         if (this._config != null) {
             let value = this._config.get_value('general',
-                                               'xkb-latin-layouts',
+                                               'xkb_latin_layouts',
                                                null);
             for (let i = 0; value != null && i < value.n_children(); i++) {
                 this._xkbLatinLayouts.push(
