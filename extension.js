@@ -28,20 +28,12 @@ function enable() {
     if (!indicator) {
         indicator = new Indicator.Indicator();
     }
-    if (!menus) {
-        menus = new PopupMenu.PopupMenuManager(indicator);
-    }
-    menus.addMenu(indicator.menu);
     Main.panel.addToStatusArea('ibus', indicator, 0);
 }
 
 function disable() {
     if (indicator) {
-        if (menus) {
-            menus.removeMenu(indicator.menu);
-            menus = null;
-        }
-        Main.statusIconDispatcher.emit('status-icon-removed', indicator.actor);
+        indicator.destroy();
         indicator = null;
     }
 }
