@@ -19,6 +19,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+const Cairo = imports.cairo;
 const St = imports.gi.St;
 const Gdk = imports.gi.Gdk;
 const GLib = imports.gi.GLib;
@@ -27,9 +28,15 @@ const Lang = imports.lang;
 const Signals = imports.signals;
 const Main = imports.ui.main;
 const Shell = imports.gi.Shell;
+const BoxPointer = imports.ui.boxpointer;
 
 const Extension = imports.ui.extensionSystem.extensions["gjsimp@tigersoldier"];
 const Common = Extension.common;
+
+const topLabelStyle = "padding: .1em 0em";
+const candidateLabelStyle = "padding: .1em 0em .1em 0em";
+const candidateTextStyle = "padding: .1em 0em .1em 0em";
+const separatorStyle = "height: 2px; padding: 0em";
 
 function StCandidateArea(orientation) {
     this._init(orientation);
@@ -40,12 +47,14 @@ StCandidateArea.prototype = {
         this.actor = new St.BoxLayout({ style_class: 'candidate-area' });
         this._orientation = orientation;
         this._labels = [];
+        this._labelBoxes = [];
         this._createUI();
     },
 
     _removeOldWidgets: function() {
         this.actor.destroy_children();
         this._labels = [];
+        this._labelBoxes = [];
     },
 
     _createUI: function() {
@@ -70,29 +79,43 @@ StCandidateArea.prototype = {
         }
         for (let i = 0; i < 16; i++) {
             let label1 = new St.Label({ text: '1234567890abcdef'.charAt(i) + '.',
-                                        style_class: 'candidate-label',
+                                        style_class: 'popup-menu-item',
+                                        style: candidateLabelStyle,
                                         reactive: true });
 
             let label2 = new St.Label({ text: '' ,
-                                        style_class: 'candidate-text',
+                                        style_class: 'popup-menu-item',
+                                        style: candidateTextStyle,
                                         reactive: true });
 
             if (this._orientation == Common.ORIENTATION_VERTICAL) {
                 let candidateHBox = new St.BoxLayout({vertical: false});
-                candidateHBox.add(label1,
+                let labelBox = new St.Bin({ style_class: 'candidate-hlabel-content' });
+                labelBox.set_child(label1);
+                labelBox.set_fill(true, true);
+                let textBox = new St.Bin({ style_class: 'candidate-htext-content' });
+                
+                textBox.set_child(label2);
+                textBox.set_fill(true, true);
+                candidateHBox.add(labelBox,
                                    { expand: false,
                                      x_fill: false,
                                      y_fill: true
                                    });
-                candidateHBox.add(label2,
+                candidateHBox.add(textBox,
                                    { expand: true,
                                      x_fill: true,
                                      y_fill: true
                                    });
                 vbox.add(candidateHBox);
+                this._labelBoxes.push(candidateHBox);
             } else {
-                hbox.add(label1);
-                hbox.add(label2);
+                let candidateHBox = new St.BoxLayout({ style_class: 'candidate-vcontent',
+                                                       vertical: false });
+                candidateHBox.add(label1);
+                candidateHBox.add(label2);
+                hbox.add(candidateHBox);
+                this._labelBoxes.push(candidateHBox);
             }
 
             this._labels.push([label1, label2]);
@@ -171,15 +194,11 @@ StCandidateArea.prototype = {
                 this._labels[i][1].remove_style_pseudo_class('active');
             }
             this._labels[i][1].set_text(text);
-            for (let j = 0; j < this._labels[i].length; j++) {
-                this._labels[i][j].show();
-            }
+            this._labelBoxes[i].show();
         }
 
-        for (let i = this._labels.length - 1; i >= candidates.length; i--) {
-            for (let j = 0; j < this._labels[i].length; j++) {
-                this._labels[i][j].hide();
-            }
+        for (let i = this._labelBoxes.length - 1; i >= candidates.length; i--) {
+            this._labelBoxes[i].hide();
         }
     },
 
@@ -222,18 +241,44 @@ CandidatePanel.prototype = {
     },
 
     _initSt: function() {
-        this._stCandidatePanel = new St.BoxLayout({style_class: 'candidate-panel',
-                                                   vertical: true});
+        this._arrowSide = St.Side.TOP;
+        this._arrowAlignment = 0.0;
+        this._isVisible = false;
+        this._boxPointer = new BoxPointer.BoxPointer(this._arrowSide,
+                                                     { x_fill: true,
+                                                       y_fill: true,
+                                                       x_align: St.Align.START });
+        this.actor = this._boxPointer.actor;
+        this.actor._delegate = this;
+        this.actor.style_class = 'popup-menu-boxpointer';
+        this.actor.add_style_class_name('popup-menu');
+        this.actor.add_style_class_name('candidate-panel');
+        this._cursorActor = new Shell.GenericContainer();
+        Main.uiGroup.add_actor(this.actor);
+        Main.uiGroup.add_actor(this._cursorActor);
+        this._boxPointer.hide(false, null);
 
-        this._stPreeditLabel = new St.Label({text: ''});
+        this._stCandidatePanel = new St.BoxLayout({ style_class: 'candidate-panel',
+                                                    vertical: true });
+        this._boxPointer.bin.set_child(this._stCandidatePanel);
+
+        this._stPreeditLabel = new St.Label({ style_class: 'popup-menu-item',
+                                              style: topLabelStyle,
+                                              text: ''});
         if (!this._preeditVisible) {
             this._stPreeditLabel.hide();
         }
-        this._stAuxLabel = new St.Label({text: ''});
+        this._stAuxLabel = new St.Label({ style_class: 'popup-menu-item',
+                                          style: topLabelStyle,
+                                          text: ''});
         if (!this._auxVisible) {
             this._stAuxLabel.hide();
         }
-        this._stCandidatePanel.set_position(500, 500);
+        
+        this._separator = new Separator();
+        if (!this._preeditVisible && !this._auxVisible) {
+            this._separator.actor.hide();
+        }
         // create candidates area
         this._stCandidateArea = new StCandidateArea(this._currentOrientation);
         this._stCandidateArea.connect('candidate-clicked', 
@@ -244,7 +289,6 @@ CandidatePanel.prototype = {
         // TODO: page up/down GUI
 
         this._packAllStWidgets();
-        Main.uiGroup.add_actor(this._stCandidatePanel);
         this._checkShowStates();
     },
 
@@ -255,6 +299,11 @@ CandidatePanel.prototype = {
                                     x_align: St.Align.MIDDLE,
                                     y_align: St.Align.START});
         this._stCandidatePanel.add(this._stAuxLabel,
+                                   {x_fill: true,
+                                    y_fill: false,
+                                    x_align: St.Align.MIDDLE,
+                                    y_align: St.Align.MIDDLE});
+        this._stCandidatePanel.add(this._separator.actor,
                                    {x_fill: true,
                                     y_fill: false,
                                     x_align: St.Align.MIDDLE,
@@ -274,8 +323,8 @@ CandidatePanel.prototype = {
 
     hidePreeditText: function() {
         this._preeditVisible = false;
-        this._stPreeditLabel.hide();
         this._checkShowStates();
+        this._stPreeditLabel.hide();
     },
 
     updatePreeditText: function(text, cursorPos, visible) {
@@ -332,8 +381,8 @@ CandidatePanel.prototype = {
 
     hideAuxiliaryText: function() {
         this._auxStringVisible = false;
-        this._stAuxLabel.hide();
         this._checkShowStates();
+        this._stAuxLabel.hide();
     },
 
     updateAuxiliaryText: function(text, show) {
@@ -420,8 +469,8 @@ CandidatePanel.prototype = {
 
     hideLookupTable: function() {
         this._lookupTableVisible = false;
-        this._stCandidateArea.hideAll();
         this._checkShowStates();
+        this._stCandidateArea.hideAll();
     },
 
     pageUpLookupTable: function() {
@@ -454,16 +503,25 @@ CandidatePanel.prototype = {
     },
 
     _checkShowStates: function() {
+        this._checkSeparatorShowStates();
         if (this._preeditVisible ||
             this._auxStringVisible ||
             this._lookupTableVisible) {
-            this._stCandidatePanel.show();
             this._checkPosition();
+            this.showAll();
             this.emit('show');
         } else {
-            this._stCandidatePanel.hide();
+            this.hideAll();
             this.emit('hide');
         }
+    },
+    
+    _checkSeparatorShowStates: function() {
+        if (this._preeditVisible || this._auxStringVisible) {
+            this._separator.actor.show();
+        }
+        else
+            this._separator.actor.hide();
     },
 
     reset: function() {
@@ -494,49 +552,78 @@ CandidatePanel.prototype = {
 
     _checkPosition: function() {
         let cursorLocation = this._movedCursorLocation || this._cursorLocation;
-        let cursorRight = cursorLocation[0] + cursorLocation[2];
-        let cursorBottom = cursorLocation[1] + cursorLocation[3];
+        let [cursorX, cursorY, cursorWidth, cursorHeight] = cursorLocation;
 
-        let windowRight = cursorRight + this._stCandidatePanel.get_width();
-        let windowBottom = cursorBottom + this._stCandidatePanel.get_height();
+        let windowRight = cursorX + cursorWidth + this.actor.get_width();
+        let windowBottom = cursorY + cursorHeight + this.actor.get_height();
+
+        this._cursorActor.set_position(cursorX, cursorY);
+        this._cursorActor.set_size(cursorWidth, cursorHeight);
+        
+        let monitor = Main.layoutManager.findMonitorForActor(this._cursorActor);
         let rootWindow = Gdk.get_default_root_window();
-        let [sx, sy] = [rootWindow.get_width(), rootWindow.get_height()];
-        let x = 0;
-        let y = 0;
-
-        if (windowRight > sx) {
-            x = sx - this._stCandidatePanel.get_width();
-        } else {
-            x = cursorRight;
-        }
+        let [sx, sy] = [monitor.x + monitor.width, monitor.y + monitor.height];
 
         if (windowBottom > sy) {
-            // move the window just above the cursor so the window and a preedit string do not overlap.
-            /* FIXME: pad would not be needed. */
-            let pad = 20; 
-            if (this._currentOrientation == Common.ORIENTATION_VERTICAL) {
-                pad = 10;
-            }
-            y = Math.min(cursorLocation[1] - pad, sy) - 
-                this._stCandidatePanel.get_height();
+            this._arrowSide = St.Side.BOTTOM;
         } else {
-            y = cursorBottom;
+            this._arrowSide = St.Side.TOP;
         }
 
-        this.move(x, y);
+        this._boxPointer._arrowSide = this._arrowSide;
+        this._boxPointer.setArrowOrigin(this._arrowSide);
+        this._boxPointer.setPosition(this._cursorActor, this._arrowAlignment);
     },
 
     showAll: function() {
-        this._stCandidatePanel.show();
+        if (!this._isVisible) {
+            this._boxPointer.show(false, null);
+            this._isVisible = true;
+        }
     },
 
     hideAll: function() {
-        this._stCandidatePanel.hide();
+        if (this._isVisible) {
+            this._boxPointer.hide(false, null);
+            this._isVisible = false;    
+        }
     },
 
     move: function(x, y) {
-        this._stCandidatePanel.set_position(x, y);
+        this.actor.set_position(x, y);
     }
 };
 
 Signals.addSignalMethods(CandidatePanel.prototype);
+
+function Separator() {
+    this._init();
+}
+
+Separator.prototype = {
+    _init: function() {
+        this.actor = new St.DrawingArea({ style_class: 'popup-separator-menu-item',
+                                          style: separatorStyle });
+        this.actor.connect('repaint', Lang.bind(this, this._onRepaint));
+    },
+    
+    _onRepaint: function(area) {
+        let cr = area.get_context();
+        let themeNode = area.get_theme_node();
+        let [width, height] = area.get_surface_size();
+        let margin = 0;
+        let gradientHeight = themeNode.get_length('-gradient-height');
+        let startColor = themeNode.get_color('-gradient-start');
+        let endColor = themeNode.get_color('-gradient-end');
+
+        let gradientWidth = (width - margin * 2);
+        let gradientOffset = (height - gradientHeight) / 2;
+        let pattern = new Cairo.LinearGradient(margin, gradientOffset, width - margin, gradientOffset + gradientHeight);
+        pattern.addColorStopRGBA(0, startColor.red / 255, startColor.green / 255, startColor.blue / 255, startColor.alpha / 255);
+        pattern.addColorStopRGBA(0.5, endColor.red / 255, endColor.green / 255, endColor.blue / 255, endColor.alpha / 255);
+        pattern.addColorStopRGBA(1, startColor.red / 255, startColor.green / 255, startColor.blue / 255, startColor.alpha / 255);
+        cr.setSource(pattern);
+        cr.rectangle(margin, gradientOffset, gradientWidth, gradientHeight);
+        cr.fill();
+    },
+};
